@@ -45,7 +45,7 @@ llm_reasoning = get_llm(model_type="reasoning", temperature=0)
 
 # Initialize the Cross-Encoder for Re-ranking
 cross_encoder_model = HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base")
-reranker = CrossEncoderReranker(model=cross_encoder_model, top_n=3)
+reranker = CrossEncoderReranker(model=cross_encoder_model, top_n=8)
 
 
 

@@ -12,15 +12,20 @@ export default function DocumentUpload() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!file || !company.trim() || !year.trim()) return;
+        if(!file) return;
+        // if (!file || !company.trim() || !year.trim()) return;
 
         setIsUploading(true);
         setStatusMessage(null);
 
         // Prepare multipart form data for FastAPI
         const formData = new FormData();
-        formData.append('company_name', company);
-        formData.append('fiscal_year', year);
+        if(company.trim()){
+            formData.append('company_name', company);
+        }
+        if(year.trim()){
+            formData.append('fiscal_year', year);
+        }
         formData.append('file', file);
 
         try {
@@ -75,7 +80,7 @@ export default function DocumentUpload() {
                             value={company}
                             onChange={(e) => setCompany(e.target.value)}
                             className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-800"
-                            required
+                            
                         />
                     </div>
                     <div>
@@ -88,7 +93,7 @@ export default function DocumentUpload() {
                             value={year}
                             onChange={(e) => setYear(e.target.value)}
                             className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-800"
-                            required
+                            
                         />
                     </div>
                 </div>
@@ -99,7 +104,7 @@ export default function DocumentUpload() {
                     </label>
                     <input
                         type="file"
-                        accept=".pdf"
+                        accept=".pdf, .json, application/pdf, application/json"
                         onChange={(e) => setFile(e.target.files?.[0] || null)}
                         className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                         required

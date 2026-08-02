@@ -1,8 +1,8 @@
 # backend/api/routes_ingestion.py
 import shutil
+from typing import Optional
 from tempfile import NamedTemporaryFile
 from fastapi import APIRouter, UploadFile, File, Form, BackgroundTasks, HTTPException
-
 # Import the background worker we built previously
 from workers.document_parser import process_and_ingest_sec_filing
 
@@ -11,8 +11,8 @@ router = APIRouter()
 @router.post("/ingest")
 async def upload_sec_filing(
     background_tasks: BackgroundTasks,
-    company_name: str = Form(...),
-    fiscal_year: str = Form(...),
+    company_name: Optional[str] = Form(None),
+    fiscal_year: Optional[str] = Form(None),
     file: UploadFile = File(...)
 ):
     """
@@ -22,13 +22,18 @@ async def upload_sec_filing(
     print(f"---API: Received {file.filename} for {company_name}---")
 
     # 1. Validate the file type
-    if not file.filename.endswith(".pdf"):
+    if not file.filename.endswith(".pdf") and not file.filename.endswith(".json"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
     try:
         # 2. Save the uploaded file to a temporary location on disk
         # delete=False ensures the file persists long enough for the background worker to read it
-        temp_pdf = NamedTemporaryFile(delete=False, suffix=".pdf")
+        suffix=""
+        if file.filename.endswith(".pdf"):
+            suffix = ".pdf"
+        else:
+            suffix = ".json"
+        temp_pdf = NamedTemporaryFile(delete=False, suffix=suffix)
         with temp_pdf as buffer:
             shutil.copyfileobj(file.file, buffer)
 
@@ -41,7 +46,7 @@ async def upload_sec_filing(
     # We pass the file path on disk, NOT the UploadFile object itself
     background_tasks.add_task(
         process_and_ingest_sec_filing,
-        file_path=file_path,
+        file_path_str=file_path,
         company_name=company_name,
         fiscal_year=fiscal_year
     )
