@@ -23,6 +23,7 @@ An advanced, event-driven Retrieval-Augmented Generation (RAG) system built to a
 ## 🛠️ Prerequisites
 
 Ensure you have the following installed on your machine:
+
 *   [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Running)
 *   [Python 3.10+](https://www.python.org/downloads/)
 *   [Node.js 18+](https://nodejs.org/)
@@ -30,6 +31,7 @@ Ensure you have the following installed on your machine:
 ## ⚙️ Environment Setup
 
 ### 1. Backend Environment Variables
+
 Create a `.env` file inside the `backend/` directory:
 
 ```env
@@ -46,17 +48,25 @@ POSTGRES_DB=finance_graphrag
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
+```
 
-🚀 Installation & Running the Application
-Step 1: Start the Databases
+---
+
+## 🚀 Installation & Running the Application
+
+### Step 1: Start the Databases
+
 Spin up the PostgreSQL (pgvector) and Neo4j containers.
 
-Bash
+```bash
 docker-compose up -d
-Step 2: Start the FastAPI Backend
+```
+
+### Step 2: Start the FastAPI Backend
+
 Open a new terminal, navigate to the backend folder, install dependencies, and start the server.
 
-Bash
+```bash
 cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows use: venv\Scripts\activate
@@ -64,20 +74,28 @@ pip install -r requirements.txt
 
 # Start the FastAPI server
 uvicorn main:app --reload --port 8000
-Step 3: Start the Next.js Frontend
+```
+
+### Step 3: Start the Next.js Frontend
+
 Open a third terminal, navigate to the frontend folder, install dependencies, and start the development server.
 
-Bash
+```bash
 cd finance-graphrag-ui
 npm install
 npm run dev
-The application will now be running at http://localhost:3000.
+```
 
-📖 Usage Instructions
-Ingest a Document: Navigate to the web interface and fill out the upload form. Upload a sample SEC 10-K PDF (e.g., Apple 2023 10-K).
+The application will now be running at `http://localhost:3000`.
 
-Monitor Processing: The UI will immediately accept the file, and background workers will begin chunking, generating dense embeddings, and extracting Neo4j graph entities.
+---
 
-Query the Agent: While or after the document processes, use the chat interface to ask complex financial questions (e.g., "Which subsidiary handles international revenue, and what are their stated risk factors?").
+## 📖 Usage Instructions
 
-Watch it Stream: The UI will display the system's reasoning steps (routing, retrieving, generating) before streaming the final answer token-by-token.
+*   **Ingest a Document:** Navigate to the web interface and fill out the upload form. Upload a sample SEC 10-K PDF (e.g., Apple 2023 10-K).
+
+*   **Monitor Processing:** The UI will immediately accept the file, and background workers will begin chunking, generating dense embeddings, and extracting Neo4j graph entities.
+
+*   **Query the Agent:** While or after the document processes, use the chat interface to ask complex financial questions (e.g., "Which subsidiary handles international revenue, and what are their stated risk factors?").
+
+*   **Watch it Stream:** The UI will display the system's reasoning steps (routing, retrieving, generating) before streaming the final answer token-by-token.
