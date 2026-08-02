@@ -1,0 +1,15 @@
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+
+# Environment / secrets
+.env
+
+# Generated test data / PDFs
+data/
+*.pdf

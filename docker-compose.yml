@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension enabled
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: graphrag_postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: finance_graphrag
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5-community
+    container_name: graphrag_neo4j
+    environment:
+      NEO4J_AUTH: neo4j/password
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "7474:7474" # HTTP Browser Console
+      - "7687:7687" # Bolt Protocol Port
+    volumes:
+      - neo4j_data:/data
+
+volumes:
+  postgres_data:
+  neo4j_data:
