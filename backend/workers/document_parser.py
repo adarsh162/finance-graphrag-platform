@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 from typing import List, Tuple
+from datetime import datetime
 from langchain_core.documents import Document
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -128,7 +129,8 @@ async def process_and_ingest_sec_filing(file_path_str: str, company_name: str, f
             "company": company_name or company,
             "year": fiscal_year,
             "page": chunk.metadata.get("page", 0), # Will default to 0 for JSON files
-            "source": file_path_str
+            "source": file_path_str,
+            "upload_date": datetime.utcnow().isoformat()
         }
         context_prefix = f"[Company: {company} | Section: {section_name}]\n"
         chunk.page_content = context_prefix + chunk.page_content

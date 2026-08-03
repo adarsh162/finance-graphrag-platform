@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes_chat import router as chat_router
 from api.routes_ingestion import router as ingestion_router
+from api.documents import router as documents_router
 from dotenv import load_dotenv
 from sqlalchemy.exc import ProgrammingError
 from services.pgvector_client import engine, TABLE_NAME, VECTOR_SIZE
@@ -40,6 +41,7 @@ app.add_middleware(
 # Register the routes
 app.include_router(chat_router, prefix="/api")
 app.include_router(ingestion_router, prefix="/api")
+app.include_router(documents_router, prefix="/api")
 
 if __name__ == "__main__":
     import uvicorn

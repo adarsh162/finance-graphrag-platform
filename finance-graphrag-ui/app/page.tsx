@@ -1,29 +1,19 @@
-// app/page.tsx
-import DocumentUpload from '../components/DocumentUpload';
-import ChatWindow from '../components/ChatWindow';
+import DocumentUpload from '@/components/DocumentUpload';
+import DocumentList from '@/components/DocumentList';
 
-export default function Home() {
-    return (
-        <main className="min-h-screen bg-gray-100 flex flex-col items-center py-12 px-4">
-            <div className="w-full max-w-4xl space-y-8">
-                
-                {/* Header */}
-                <div className="text-center space-y-2">
-                    <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
-                        Enterprise Finance GraphRAG
-                    </h1>
-                    <p className="text-gray-600 text-lg">
-                        Real-time AI analysis of SEC 10-K filings using LangGraph, PGVector, and Neo4j.
-                    </p>
-                </div>
-                
-                {/* Ingestion Section */}
-                <DocumentUpload />
-
-                {/* Live Chat Section */}
-                <ChatWindow />
-                
-            </div>
-        </main>
-    );
+export default function IngestionPage() {
+  return (
+    <div className="max-w-6xl mx-auto py-8 px-4">
+      <h1 className="text-2xl font-bold mb-6 text-white">Knowledge Base Management</h1>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+        <div className="lg:col-span-3">
+          <DocumentUpload />
+        </div>
+        <div className="lg:col-span-2 pt-2">
+          <DocumentList />
+        </div>
+      </div>
+    </div>
+  );
 }
