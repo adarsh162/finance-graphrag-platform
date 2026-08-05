@@ -24,7 +24,14 @@ export default function ChatWindow() {
     if (!textToSend.trim() || isLoading) return;
 
     const userMessage: Message = { role: "user", content: textToSend };
-    setMessages((prev) => [...prev, userMessage]);
+    
+    // 🛑 1. Add user message AND the empty assistant placeholder immediately
+    setMessages((prev) => [
+      ...prev, 
+      userMessage, 
+      { role: "assistant", content: "" }
+    ]);
+    
     if (!queryText) setInput("");
     setIsLoading(true);
 
@@ -46,8 +53,6 @@ export default function ChatWindow() {
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder("utf-8");
-      
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
       while (true) {
         const { done, value } = await reader!.read();
@@ -63,10 +68,7 @@ export default function ChatWindow() {
             
             try {
               const parsed = JSON.parse(dataStr);
-              console.log("Raw Stream Chunk:", parsed);
               
-              // Filter out duplicate LangGraph/LangChain events. 
-              // We only want tokens directly from the LLM.
               if (parsed.event && parsed.event !== "on_chat_model_stream") {
                 continue; 
               }
@@ -82,9 +84,6 @@ export default function ChatWindow() {
                   const newMessages = [...prev];
                   const lastIndex = newMessages.length - 1;
                   
-                  // 🚨 THE FIX: Spread the old object into a brand new one.
-                  // This creates a new memory reference so React Strict Mode 
-                  // doesn't double-append the string!
                   newMessages[lastIndex] = {
                     ...newMessages[lastIndex],
                     content: newMessages[lastIndex].content + textChunk
@@ -100,10 +99,21 @@ export default function ChatWindow() {
         }
       }
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "⚠️ Error connecting to server." },
-      ]);
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        const lastIndex = newMessages.length - 1;
+        if (newMessages[lastIndex]?.role === "assistant" && !newMessages[lastIndex].content) {
+          newMessages[lastIndex] = {
+            ...newMessages[lastIndex],
+            content: "⚠️ Error connecting to server."
+          };
+          return newMessages;
+        }
+        return [
+          ...prev,
+          { role: "assistant", content: "⚠️ Error connecting to server." },
+        ];
+      });
     } finally {
       setIsLoading(false);
     }
@@ -169,25 +179,22 @@ export default function ChatWindow() {
                     : "bg-slate-800/80 border border-slate-700/60 text-slate-200 rounded-bl-none"
                 }`}
               >
-                {msg.content}
+                {/* 🛑 2. If assistant message is empty, render loading dots INSIDE the bubble */}
+                {msg.role === "assistant" && !msg.content ? (
+                  <div className="flex space-x-1.5 items-center py-1">
+                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
+                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                  </div>
+                ) : (
+                  msg.content
+                )}
               </div>
             </div>
           ))
         )}
 
-        {/* Loading Spinner */}
-        {isLoading && (
-          <div className="flex items-center space-x-3 text-slate-400 text-xs pl-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/40 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0 animate-pulse">
-              AI
-            </div>
-            <div className="flex space-x-1.5 items-center bg-slate-800/80 px-4 py-3 rounded-2xl border border-slate-700/60">
-              <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
-              <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-              <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-            </div>
-          </div>
-        )}
+        {/* 🛑 3. Removed separate {isLoading && (...)} block to prevent duplicate indicator */}
 
         <div ref={messagesEndRef} />
       </div>
