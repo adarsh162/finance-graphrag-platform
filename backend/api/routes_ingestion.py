@@ -3,10 +3,28 @@ import shutil
 from typing import Optional
 from tempfile import NamedTemporaryFile
 from fastapi import APIRouter, UploadFile, File, Form, BackgroundTasks, HTTPException
+from langchain_community.document_loaders import PyPDFLoader
 # Import the background worker we built previously
 from workers.document_parser import process_and_ingest_sec_filing
+from workers.graph_extractors import extract_and_store_graph_entities
+from services.neo4j_client import get_graph_client
 
 router = APIRouter()
+
+async def process_graph_extraction_wrapper(file_path: str, document_id: str):
+    """
+    Background worker wrapper that converts the PDF on disk into 
+    LangChain Document objects, then triggers entity extraction for Neo4j.
+    """
+    try:
+        print(f"📄 Loading PDF for graph extraction: {file_path}")
+        loader = PyPDFLoader(file_path)
+        documents = loader.load()
+        print(f"🕸️ Loaded {len(documents)} pages. Extracting Neo4j graph entities...")
+        await extract_and_store_graph_entities(documents, document_id=document_id)
+        print("✅ Neo4j graph entity extraction completed successfully.")
+    except Exception as e:
+        print(f"🔥 Error during graph extraction background task: {e}")
 
 @router.post("/ingest")
 async def upload_sec_filing(
@@ -41,19 +59,27 @@ async def upload_sec_filing(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
-
+    document_id = file.filename
     # 3. Schedule the background task
     # We pass the file path on disk, NOT the UploadFile object itself
     background_tasks.add_task(
         process_and_ingest_sec_filing,
         file_path_str=file_path,
+        document_id=document_id,
         company_name=company_name,
         fiscal_year=fiscal_year
+    )
+
+    background_tasks.add_task(
+        process_graph_extraction_wrapper,
+        file_path=file_path,
+        document_id=document_id
     )
 
     # 4. Return a 202 Accepted immediately so the UI does not hang
     return {
         "status": "processing",
         "message": f"Document {file.filename} accepted. Ingestion started in the background.",
-        "company": company_name
+        "company": company_name,
+        "document_id": document_id
     }

@@ -74,7 +74,7 @@ def load_json(file_path: Path) -> Tuple[List[Document], dict]:
 
     return docs, extracted_metadata
 
-async def process_and_ingest_sec_filing(file_path_str: str, company_name: str, fiscal_year: str):
+async def process_and_ingest_sec_filing(file_path_str: str, document_id: str, company_name: str, fiscal_year: str):
     """
     Asynchronously parses, contextually chunks, embeds with BGE, 
     and saves SEC 10-K documents (PDF or JSON) to PostgreSQL.
@@ -128,6 +128,7 @@ async def process_and_ingest_sec_filing(file_path_str: str, company_name: str, f
         metadata = {
             "company": company_name or company,
             "year": fiscal_year,
+            "document_id": document_id,
             "page": chunk.metadata.get("page", 0), # Will default to 0 for JSON files
             "source": file_path_str,
             "upload_date": datetime.utcnow().isoformat()

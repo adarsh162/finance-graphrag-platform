@@ -20,3 +20,21 @@ neo4j_graph = Neo4jGraph(
 def get_graph_client():
     """Returns the singleton graph client."""
     return neo4j_graph
+
+def get_graph_context(entities: list[str]) -> str:
+    """Finds relationships connected to extracted entities."""
+    if not entities:
+        return ""
+
+    query = """
+    MATCH (e)-[r]->(target)
+    WHERE any(entity IN $entities WHERE toLower(coalesce(e.id, '')) CONTAINS toLower(entity))
+       OR any(entity IN $entities WHERE toLower(coalesce(target.id, '')) CONTAINS toLower(entity))
+    RETURN e.id AS source, type(r) AS rel, target.id AS target
+    LIMIT 25
+    """
+    result = neo4j_graph.query(query, params={"entities": entities})
+    if not result:
+        print("⚠️ Cypher query executed but found 0 matches in the graph.")
+    facts = [f"{record['source']} -> {record['rel']} -> {record['target']}" for record in result]
+    return "\n".join(facts)

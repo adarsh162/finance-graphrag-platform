@@ -1,5 +1,6 @@
 # backend/routes/documents.py
 import os
+import traceback
 from datetime import datetime
 from typing import List
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+from services.neo4j_client import get_graph_client
 
 load_dotenv()
 
@@ -35,66 +37,98 @@ class DocumentListResponse(BaseModel):
 async def list_documents():
     # Group by filename so chunks of the same file collapse into one row
     query = text("""
-        SELECT 
-            MIN(langchain_metadata->>'source') AS source, 
-            MAX(langchain_metadata->>'company') AS company, 
-            MAX(langchain_metadata->>'year') AS year,
-            MAX(langchain_metadata->>'upload_date') AS upload_date
-        FROM finance_documents
-        WHERE langchain_metadata->>'source' IS NOT NULL
-        GROUP BY regexp_replace(langchain_metadata->>'source', '^.*[\\/]', '')
-    """)
-    
+            SELECT 
+                COALESCE(
+                    MAX(langchain_metadata->>'document_id'), 
+                    regexp_replace(MIN(langchain_metadata->>'source'), '^.*[\\/]', '')
+                ) AS doc_id,
+                MAX(langchain_metadata->>'upload_date') AS upload_date
+            FROM finance_documents
+            WHERE langchain_metadata->>'source' IS NOT NULL
+            GROUP BY 
+                COALESCE(
+                    langchain_metadata->>'document_id', 
+                    regexp_replace(langchain_metadata->>'source', '^.*[\\/]', '')
+                )
+        """)
     documents = []
     try:
         async with engine.connect() as conn:
             result = await conn.execute(query)
-            
             for row in result:
-                source = row.source
-                company = row.company or ""
-                year = row.year or ""
-                
-                filename = os.path.basename(source)
-                display_name = f"{company} {year}".strip()
-                name = f"{display_name} ({filename})" if display_name else filename
+                display_name = row.doc_id
+                # name = f"{display_name} ({filename})" if display_name else filename
                 upload_date = row.upload_date or datetime.utcnow().isoformat()
                 
                 documents.append(
                     DocumentItem(
-                        id=source,
-                        name=name,
+                        id=row.doc_id,
+                        name=display_name,
                         uploadDate=upload_date,
                         status="completed"
                     )
                 )
         return {"documents": documents}
-    
-    except ProgrammingError as e:
-        if "does not exist" in str(e):
-            return {"documents": []}
-        raise HTTPException(status_code=500, detail=f"Database query failed: {str(e)}")
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+        print(f"Failed to fetch documents: {e}")
+        return {"documents": []}
 
 @router.delete("/{document_id:path}")
 async def delete_document(document_id: str):
     # Match any chunk whose source ends with the target filename to clean up duplicates
-    filename = os.path.basename(document_id)
-    query = text("""
+    clean_filename = os.path.basename(document_id)
+    filename_pattern = f"%{clean_filename}"
+    pg_delete_query = text("""
         DELETE FROM finance_documents 
-        WHERE langchain_metadata->>'source' LIKE :filename_pattern
+        WHERE langchain_metadata->>'document_id' = :clean_name
+               OR langchain_metadata->>'source' LIKE :pattern
+               OR langchain_metadata->>'document_id' = :raw_id
     """)
-    
+
     try:
         async with engine.begin() as conn:
-            result = await conn.execute(query, {"filename_pattern": f"%{filename}"})
+            result = await conn.execute(pg_delete_query, {
+                    "clean_name": clean_filename, 
+                    "pattern": filename_pattern,
+                    "raw_id": document_id
+                })
             if result.rowcount == 0:
                 raise HTTPException(status_code=404, detail="Document not found in vector store")
-                
-        return {"message": f"Successfully deleted {result.rowcount} vector chunks for filename '{filename}'"}
-    except HTTPException:
-        raise
+
+        graph_client = get_graph_client()
+        clean_filename = os.path.basename(document_id)
+        # Cypher 1: Delete the Document node and any direct chunk/source references
+        cascading_delete_query = """
+        MATCH (d:Document)
+        WHERE d.document_id = $doc_id 
+           OR d.document_id = $clean_name
+           OR d.source = $doc_id 
+           OR d.source = $clean_name
+           OR d.source ENDS WITH $clean_name
+        OPTIONAL MATCH (d)-[:MENTIONS]->(e)
+        WITH d, collect(e) AS entities
+        DETACH DELETE d
+        WITH entities
+        UNWIND entities AS e
+        WITH e  // <--- ADD THIS LINE HERE
+        WHERE e IS NOT NULL AND NOT EXISTS {
+            MATCH (:Document)-[:MENTIONS]->(e)
+        }
+        DETACH DELETE e
+        """
+        graph_client.query(cascading_delete_query, params={"doc_id": document_id, "clean_name": clean_filename})
+        return {"message": f"Successfully deleted {result.rowcount} vector chunks for filename '{clean_filename}'"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
+        # 1. Print a highly visible header
+        print("\n" + "="*50)
+        print("🔥 DELETION CRASHED. FULL TRACEBACK BELOW:")
+        print("="*50)
+        # 2. Print the exact line number and underlying error to the terminal
+        traceback.print_exc()
+        print("="*50 + "\n")
+
+        # 3. Raise the HTTP exception for the frontend
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to delete document: {str(e)}"
+        )

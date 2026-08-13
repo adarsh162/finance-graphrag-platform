@@ -53,6 +53,7 @@ async def stream_langgraph_events(graph: CompiledStateGraph, question: str, thre
 
         kind = event["event"]
         name = event.get("name", "")
+        node_name = event.get("metadata", {}).get("langgraph_node", "")
 
         # 1. State Updates (e.g., node finishes)
         if kind == "on_chain_end" and name != "LangGraph":
@@ -72,10 +73,11 @@ async def stream_langgraph_events(graph: CompiledStateGraph, question: str, thre
 
         # 2. Token Streaming
         elif kind == "on_chat_model_stream":
-            token = event["data"]["chunk"].content
-            if token:
-                full_response += token
-                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+            if node_name == "generate_response":
+                token = event["data"]["chunk"].content
+                if token:
+                    full_response += token
+                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
         elif kind == "on_chat_model_end":
             output_msg = event["data"].get("output")
@@ -179,7 +181,7 @@ async def check_safety_groq(query: str) -> bool:
 
 async def check_toxicity(query: str) -> bool:
     try:
-        guard_llm = ChatGroq(model="llama-guard-3-8b", temperature=0.0)
+        guard_llm = ChatGroq(model="openai/gpt-oss-safeguard-20b", temperature=0.0)
         response = await guard_llm.ainvoke([HumanMessage(content=query)])
         output = response.content.strip().lower()
 

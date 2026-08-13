@@ -1,101 +1,118 @@
-# Enterprise Finance GraphRAG
+# Financial GraphRAG Platform
 
-An advanced, event-driven Retrieval-Augmented Generation (RAG) system built to analyze complex financial documents (like SEC 10-K filings) in real-time. This project moves beyond standard semantic search by combining **Dense Vector Retrieval (pgvector)** with **Knowledge Graph Traversal (Neo4j)**, orchestrated by **LangGraph**.
-
-## 🚀 Key Features
-
-*   **Continuous Ingestion:** Asynchronously chunk and embed massive PDF documents in the background without blocking the user interface.
-*   **Hybrid Search & Reranking:** Combines sparse (BM25) and dense (BAAI/BGE-Large) retrieval, dynamically reranked using a Cross-Encoder for maximum accuracy.
-*   **GraphRAG Reasoning:** Uses an LLM to extract financial entities (Companies, Subsidiaries, Risk Factors, Revenue Streams) into Neo4j for multi-hop reasoning.
-*   **Real-Time Streaming:** Streams LangGraph execution states and LLM tokens to a Next.js frontend using Server-Sent Events (SSE).
-
-## 🏗️ Architecture Stack
-
-*   **Backend:** FastAPI, Python, LangGraph, LangChain
-*   **Frontend:** Next.js (App Router), React, Tailwind CSS, `@microsoft/fetch-event-source`
-*   **Vector Database:** PostgreSQL with `pgvector`
-*   **Graph Database:** Neo4j
-*   **Models:** OpenAI (`gpt-4o`, `gpt-4o-mini`) & HuggingFace (`bge-large-en-v1.5`, `bge-reranker-v2-m3`)
-*   **Infrastructure:** Docker Compose
+An advanced Retrieval-Augmented Generation (RAG) platform designed specifically for extracting, querying, and synthesizing complex financial documents (e.g., SEC 10-K filings). This architecture leverages the combined power of knowledge graphs and vector databases to ensure hyper-accurate, multi-hop reasoning without LLM hallucinations.
 
 ---
 
-## 🛠️ Prerequisites
+## 🏗️ Architecture Overview
 
-Ensure you have the following installed on your machine:
+This platform utilizes a hybrid GraphRAG architecture orchestrated by LangGraph, balancing the dense, semantic understanding of vector embeddings with the strict, relationship-based topology of a graph database.
 
-*   [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Running)
-*   [Python 3.10+](https://www.python.org/downloads/)
-*   [Node.js 18+](https://nodejs.org/)
+- **Graph Store (Neo4j):** Extracts and maps definitive relationships between entities (e.g., `Company -> HAS_SUBSIDIARY -> Subsidiary`, `Company -> FACED_WITH -> RiskFactor`).
+- **Vector Store (PostgreSQL / `pgvector`):** Handles semantic similarity search over raw document chunks to capture nuanced financial narratives, metric tables, and temporal data.
+- **Orchestration (LangGraph):** Manages stateful multi-agent workflows, controlling the routing, entity extraction, hybrid retrieval, and final response generation.
 
-## ⚙️ Environment Setup
+---
 
-### 1. Backend Environment Variables
+## ✨ Core Features
 
-Create a `.env` file inside the `backend/` directory:
+*   **Hybrid Retrieval Pipeline:** Merges graph traversal facts from Neo4j with dense semantic vector search results from PostgreSQL (`pgvector`) to capture both structural relationships and unstructured context.
+*   **Cross-Encoder Reranking:** Leverages a `CrossEncoder` model to re-score and re-rank combined candidate context chunks before passing them to the generator LLM, ensuring top semantic relevance and cutting down noise.
+*   **Strict Anti-Hallucination Guardrails:** Implements rigid system prompts that force the generator LLM to reject queries when required data (like specific revenue streams or missing subsidiaries) is not explicitly present in the combined context.
+*   **Optimized Graph Extraction:** Uses unconstrained `LLMGraphTransformer` extraction for reliable ingestion, bypassing strict API tool-schema failures (e.g., `400 tool_use_failed`) common when parsing complex financial tables.
+*   **Clean SSE Streaming (Server-Sent Events):** Filters LangGraph event streams strictly to the final generator node (`langgraph_node == "generate_response"`), completely eliminating entity tag bleed into the frontend UI.
+*   **Trace Observability & Evaluation:** Calculates and logs real-time evaluation metrics for every query, distinguishing perfectly grounded responses (Faithfulness/Hallucination Score = 1) from fabricated inferences (Score = 0).
+*   **Document Lifecycle Management:** Complete UI and backend support for viewing active ingested filings, uploading new PDFs for automatic graph & vector indexing, and removing documents with cascading deletions across Neo4j and `pgvector`.
+*   **Security & Prompt Guardrails:** These intercept malicious inputs, such as prompt injections and jailbreak attempts, preventing unauthorized actions or data manipulation.
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+*   **Framework:** FastAPI (Python 3.12)
+*   **Orchestration:** LangGraph / LangChain
+*   **Graph Database:** Neo4j (Cypher)
+*   **Vector Database:** PostgreSQL with `pgvector` extension
+*   **Reranker:** SentenceTransformers / HuggingFace (`CrossEncoder`)
+*   **LLMs Supported:** Groq (Llama 3), Google Gemini Flash, OpenAI (GPT-4o)
+
+
+### Frontend
+
+- **Framework:** Next.js (React, TypeScript)
+- **Styling:** Tailwind CSS
+- **Data Fetching:** Native browser `EventSource` for real-time SSE streaming
+
+---
+
+## 🚀 Setup & Installation
+
+### 1. Environment Variables
+
+Create a `.env` file in your `backend/` directory with the following keys:
 
 ```env
-OPENAI_API_KEY=your_openai_api_key_here
+# LLM Provider (groq, google, openai)
+LLM_PROVIDER=groq
+GROQ_API_KEY=your_api_key_here
 
-# PostgreSQL Configuration (Matches docker-compose)
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=password
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=finance_graphrag
-
-# Neo4j Configuration (Matches docker-compose)
+# Neo4j Graph Database
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=password
+NEO4J_PASSWORD=your_password
+
+# PostgreSQL (pgvector)
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_password
+POSTGRES_DB=rag_db
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
 ```
 
----
+### 2. Backend Initialization
 
-## 🚀 Installation & Running the Application
-
-### Step 1: Start the Databases
-
-Spin up the PostgreSQL (pgvector) and Neo4j containers.
-
-```bash
-docker-compose up -d
-```
-
-### Step 2: Start the FastAPI Backend
-
-Open a new terminal, navigate to the backend folder, install dependencies, and start the server.
+Ensure PostgreSQL and Neo4j are running, then install dependencies and start the API:
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
+python3.12 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 
-# Start the FastAPI server
-uvicorn main:app --reload --port 8000
+# Start the FastAPI Server
+uvicorn main:app --reload
 ```
 
-### Step 3: Start the Next.js Frontend
-
-Open a third terminal, navigate to the frontend folder, install dependencies, and start the development server.
+### 3. Frontend Initialization
 
 ```bash
-cd finance-graphrag-ui
+cd frontend
 npm install
 npm run dev
 ```
 
-The application will now be running at `http://localhost:3000`.
-
 ---
 
-## 📖 Usage Instructions
+## 🧠 System Behaviors & Best Practices
 
-*   **Ingest a Document:** Navigate to the web interface and fill out the upload form. Upload a sample SEC 10-K PDF (e.g., Apple 2023 10-K).
+### The Fallback Mechanism
 
-*   **Monitor Processing:** The UI will immediately accept the file, and background workers will begin chunking, generating dense embeddings, and extracting Neo4j graph entities.
+This platform is explicitly designed for financial accuracy. If you ask a question like, "What are the revenue streams for AeroTech's hardware?" and the source 10-K does not explicitly map a product to a revenue tier, the system will intentionally return:
 
-*   **Query the Agent:** While or after the document processes, use the chat interface to ask complex financial questions (e.g., "Which subsidiary handles international revenue, and what are their stated risk factors?").
+> "The provided context does not contain sufficient information to answer this."
 
-*   **Watch it Stream:** The UI will display the system's reasoning steps (routing, retrieving, generating) before streaming the final answer token-by-token.
+This is a feature, not a bug. It prevents the AI from fabricating mappings, ensuring a perfect Groundedness Score of 1 in the observability ledger.
+
+### Managing Graph Extraction Schema
+
+By default, the ingestion worker runs `LLMGraphTransformer` without strict `allowed_nodes` or `allowed_relationships` constraints. This ensures stable JSON tool calling from the LLMs. If you require a strict ontology, we recommend switching the extraction LLM provider to OpenAI (GPT-4o) to handle complex, multi-array schema validation flawlessly.
+
+## 🔌 Key API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/documents` | Lists all ingested documents and their status. |
+| `POST` | `/api/documents/upload` | Uploads a PDF file and triggers background vector & graph ingestion. |
+| `DELETE` | `/api/documents/:id` | Deletes a document and cascades deletion through Neo4j and `pgvector`. |
+| `POST` | `/api/chat/stream` | Initiates SSE streaming for interactive RAG queries. |
